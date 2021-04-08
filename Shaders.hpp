@@ -69,6 +69,26 @@ public:
 };
 
 
+class UniformValue
+{
+    friend class ShaderProgram;
+    GLuint _program_id = 0;
+    GLint _location = -1;
+
+    UniformValue(GLuint program, GLint location):
+        _program_id(program),
+        _location(location)
+    {}
+
+public:
+    UniformValue() = default;
+
+    void operator=(int v) { glUniform1i(_location, v); }
+    void operator=(float v) { glUniform1f(_location, v); }
+    void operator=(const glm::vec2 &v) { glUniform2f(_location, v[0], v[1]); }
+    void operator=(const glm::vec3 &v) { glUniform3f(_location, v[0], v[1], v[2]); }
+    void operator=(const glm::vec4 &v) { glUniform4f(_location, v[0], v[1], v[2], v[3]); }
+};
 
 class ShaderProgram
 {
@@ -91,6 +111,13 @@ public:
     void detach(const Shader &shader);
 
     void link();
+
+    UniformValue operator[](const char *uniform_name)
+    {
+        auto location = glGetUniformLocation(_id, uniform_name);
+        GLError::RaiseIfError();
+        return UniformValue(_id, location);
+    }
 };
 
 #endif //OPENGLTUTORIAL_SHADERS_HPP

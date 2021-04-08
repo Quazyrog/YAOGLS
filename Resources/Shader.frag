@@ -1,5 +1,9 @@
 #version 330 core
+
 out vec3 color;
+
+uniform vec3 g_color;
+
 void main(){
-  color = vec3(1,0,0);
+    color = g_color;
 }

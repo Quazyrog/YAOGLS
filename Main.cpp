@@ -1,10 +1,13 @@
 #include <iostream>
 #include "Shaders.hpp"
+#include <cmath>
 
 
 
 struct Config
 {
+    bool print_system_info = true;
+
     int antialiasing = 4;
     int resolution_width = 1366;
     int resolution_height = 768;
@@ -14,13 +17,39 @@ struct Config
 };
 
 
+void PrintSystemInfo()
+{
+    int iv;
+    fmt::print("Vendor:  {}\n", (char*)glGetString(GL_VENDOR));
+    fmt::print("Renderer:  {}\n", (char*)glGetString(GL_RENDERER));
+    fmt::print("Version:  {}\n", (char*)glGetString(GL_VERSION));
+    fmt::print("GLSL Version:  {}\n", (char*)glGetString(GL_SHADING_LANGUAGE_VERSION));
+
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &iv);
+    fmt::print("Max Vertex Attribs: {}\n", iv);
+}
+
+
+void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    static bool wireframe_mode = false;
+    if (key == GLFW_KEY_W && action == GLFW_PRESS) {
+        if (wireframe_mode)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        else
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        wireframe_mode = !wireframe_mode;
+    }
+}
+
+
 GLFWwindow *InitMainWindow(const char *title, Config config)
 {
     if (!glfwInit())
         throw Error("unable to initialize GLFW");
 
     auto monitor = config.fullscreen ? glfwGetPrimaryMonitor() : nullptr;
-    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_SAMPLES, config.antialiasing);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -31,6 +60,8 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
         throw Error("unable to create main window");
     }
 
+    glfwSetKeyCallback(window, KeyCallback);
+
     glfwMakeContextCurrent(window);
     glewExperimental = true;
     if (glewInit() != GLEW_OK) {
@@ -40,6 +71,7 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
 
     return window;
 }
+
 
 static constexpr GLfloat VERTEX_DATA[] = {
     -1.0f, -1.0f, 0.0f,
@@ -60,10 +92,8 @@ int main(void)
         return 1;
     }
 
-    GLuint vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-    GLError::RaiseIfError();
+    if (config.print_system_info)
+        PrintSystemInfo();
 
     GLuint vbo;
     glGenBuffers(1, &vbo);
@@ -80,7 +110,6 @@ int main(void)
         shader_program.link();
         shader_program.detach(fragment_shader);
         shader_program.detach(vertex_shader);
-        glUseProgram(shader_program.id());
     } catch (ShaderCompilationError &e) {
         std::cerr << e.what() << ": " << e.message() << "\n";
         for (auto c: e.compilation_log()) {
@@ -93,14 +122,27 @@ int main(void)
         return 1;
     }
 
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+    GLError::RaiseIfError();
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+    float t = 0.0;
     while (!glfwWindowShouldClose(window)) {
+        t += 0.005;
+        if (t > M_PI)
+            t -= 2 * M_PI;
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glEnableVertexAttribArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+        glUseProgram(shader_program.id());
+        shader_program["g_color"] = glm::vec3{std::sin(t), std::sin(t + 1.0), std::sin(t + 2.0)};
+
+        glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 3);
-        glDisableVertexAttribArray(0);
         GLError::RaiseIfError();
 
         glfwSwapBuffers(window);
