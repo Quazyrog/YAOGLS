@@ -74,9 +74,9 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
 
 
 static constexpr GLfloat VERTEX_DATA[] = {
-    -1.0f, -1.0f, 0.0f,
-    1.0f, -1.0f, 0.0f,
-    0.0f,  1.0f, 0.0f,
+    -1.0f, -1.0f, 0.0f,  1,0,0,
+    1.0f, -1.0f, 0.0f,   0,1,0,
+    0.0f,  1.0f, 0.0f,   0,0,1,
 };
 
 
@@ -127,19 +127,22 @@ int main(void)
     glBindVertexArray(vao);
     GLError::RaiseIfError();
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    GLError::RaiseIfError();
 
-    float t = 0.0;
+    float t = 1.0;
     while (!glfwWindowShouldClose(window)) {
-        t += 0.005;
-        if (t > M_PI)
-            t -= 2 * M_PI;
+        t -= 0.005;
+        if (t < -1)
+            t += 2.0;
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(shader_program.id());
-        shader_program["g_color"] = glm::vec3{std::sin(t), std::sin(t + 1.0), std::sin(t + 2.0)};
+        shader_program["time"] = std::abs(t);
 
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 3);
