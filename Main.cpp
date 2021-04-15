@@ -2,6 +2,7 @@
 #include <cmath>
 #include <png++/png.hpp>
 #include <functional>
+#include <glm/gtc/matrix_transform.hpp>
 #include "Shaders.hpp"
 
 
@@ -12,6 +13,7 @@ struct Config
     int antialiasing = 4;
     int resolution_width = 1366;
     int resolution_height = 768;
+    float field_of_view = 45.0;
     bool fullscreen = false;
 
     std::filesystem::path resource_root = "/home/quazyrog/Desktop/OpenGL/Resources";
@@ -41,6 +43,16 @@ constexpr unsigned int FACES[] = {
 }
 
 
+glm::mat4 ProjectionMatrix;
+GLFWwindow *MainWindow;
+struct {
+    bool wireframe_mode = false;
+    bool cursor_locked = false;
+    bool cull_face = true;
+} ControlState;
+bool ControlStateChanged = true;
+
+
 void PrintSystemInfo()
 {
     int iv;
@@ -53,19 +65,33 @@ void PrintSystemInfo()
     fmt::print("Max Vertex Attribs: {}\n", iv);
 }
 
+void WindowResizeCallback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+    ProjectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 500.0f);
+}
 
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
-    static bool wireframe_mode = false;
-    if (key == GLFW_KEY_W && action == GLFW_PRESS) {
-        if (wireframe_mode)
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        else
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        wireframe_mode = !wireframe_mode;
+    if (action == GLFW_PRESS) {
+        switch (key) {
+        case GLFW_KEY_ESCAPE:
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            break;
+        case GLFW_KEY_W:
+            ControlState.wireframe_mode = !ControlState.wireframe_mode;
+            ControlState.cull_face = !ControlState.wireframe_mode;
+            ControlStateChanged = true;
+            break;
+        }
     }
 }
 
+void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_PRESS)
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+}
 
 GLFWwindow *InitMainWindow(const char *title, Config config)
 {
@@ -84,7 +110,10 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
         throw Error("unable to create main window");
     }
 
+    WindowResizeCallback(window, config.resolution_width, config.resolution_height);
+    glfwSetWindowSizeCallback(window, WindowResizeCallback);
     glfwSetKeyCallback(window, KeyCallback);
+    glfwSetMouseButtonCallback(window, MouseButtonCallback);
 
     glfwMakeContextCurrent(window);
     glewExperimental = true;
@@ -96,19 +125,13 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
     return window;
 }
 
-glm::vec3 ColorFrom(int x, int y, int z)
-{
-    return glm::vec3(0.5 + x / 30.0, 0.5 + y / 6.0, 0.5 + z / 30.0);
-}
-
 
 int main(void)
 {
     Config config;
 
-    GLFWwindow *window;
     try {
-        window = InitMainWindow("Hello World", config);
+        MainWindow = InitMainWindow("Hello World", config);
     } catch (Error &e) {
         std::cerr << "ERROR: " << e.message() << std::endl;
         return 1;
@@ -163,39 +186,33 @@ int main(void)
 
 
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_GREATER);
-    glEnable(GL_CULL_FACE);
-    glClearDepth(-1.0);
     glClearColor(0, 0, 0, 0);
     int i = 0;
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(MainWindow)) {
+        if (ControlStateChanged) {
+            glPolygonMode(GL_FRONT_AND_BACK, ControlState.wireframe_mode ? GL_LINE : GL_FILL);
+            if (ControlState.cull_face) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+            ControlStateChanged = false;
+        }
+
         ++i;
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(shader_program.id());
         glBindVertexArray(vao);
+        shader_program["ModelMatrix"] = glm::rotate(glm::scale(glm::mat4(1.0), glm::vec3(0.1)), glm::radians(i / 2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+        shader_program["ViewMatrix"] = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, sin(i/100.0)));
+        shader_program["ProjectionMatrix"] = ProjectionMatrix;
 
-        auto position = shader_program["worldspace_position"];
+        shader_program["Position"] = glm::vec3(0, 0, -1.5);
         auto colour = shader_program["voxel_colour"];
-        int j = 0;
-        for (int x = 10; x >= -10; --x) {
-            for (int z = -10; z <= 10; ++z) {
-                for (int y = -10; y <= 10; ++y) {
-                    if (j > i) goto BAD;
-                    j += 1;
-                    position = glm::vec3(x, y, z);
-                    for (auto i = 1; i <= 6; ++i) {
-                        colour = glm::vec3((i+1) & 1, (i+1) & 2, (i+1) & 4);
-                        glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT,
-                                       (void *) (sizeof(Cube::FACES[0]) * 4 * i));
-                    }
-                }
-            }
+        for (auto i = 0; i <= 6; ++i) {
+            colour = glm::vec3((i+1) & 1, (i+1) & 2, (i+1) & 4);
+            glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT,(void *) (sizeof(Cube::FACES[0]) * 4 * i));
         }
-        BAD:
 
         glBindVertexArray(0);
         GLError::RaiseIfError();
-        glfwSwapBuffers(window);
+        glfwSwapBuffers(MainWindow);
         glfwPollEvents();
     }
 

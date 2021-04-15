@@ -3,6 +3,7 @@
 #include "Utils.hpp"
 #include <cassert>
 #include <memory>
+#include <glm/gtc/type_ptr.hpp>
 
 class Shader
 {
@@ -82,12 +83,14 @@ class UniformValue
 
 public:
     UniformValue() = default;
+    void operator=(const UniformValue &other) = delete;
 
     void operator=(int v) { glUniform1i(_location, v); }
     void operator=(float v) { glUniform1f(_location, v); }
     void operator=(const glm::vec2 &v) { glUniform2f(_location, v[0], v[1]); }
     void operator=(const glm::vec3 &v) { glUniform3f(_location, v[0], v[1], v[2]); }
     void operator=(const glm::vec4 &v) { glUniform4f(_location, v[0], v[1], v[2], v[3]); }
+    void operator=(const glm::mat4 &v) { glUniformMatrix4fv(_location, 1, GL_FALSE, glm::value_ptr(v)); }
 };
 
 class ShaderProgram
