@@ -3,6 +3,7 @@
 #include <png++/png.hpp>
 #include <functional>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/norm.hpp>
 #include "Shaders.hpp"
 
 
@@ -45,12 +46,40 @@ constexpr unsigned int FACES[] = {
 
 glm::mat4 ProjectionMatrix;
 GLFWwindow *MainWindow;
-struct {
+struct ControlState {
     bool wireframe_mode = false;
     bool cursor_locked = false;
     bool cull_face = true;
+
+    bool operator==(const ControlState &other) const = default;
+    bool operator!=(const ControlState &other) const = default;
 } ControlState;
-bool ControlStateChanged = true;
+struct CameraState {
+    float vangle = 0;
+    float hangle = 0;
+
+    glm::vec3 position{0};
+    glm::vec3 velocity{0};
+
+    void move(float speed)
+    {
+        if (glm::l1Norm(velocity) < 0.001)
+            return;
+        velocity = glm::normalize(velocity);
+        auto worldspace_x = std::cos(-hangle) * velocity.x + std::sin(-hangle) * velocity.z;
+        auto worldspace_z = -std::sin(-hangle) * velocity.x + std::cos(-hangle) * velocity.z;
+        position += speed * glm::vec3(worldspace_x, velocity.y, worldspace_z);
+    }
+
+    auto compute_view_matrix() const
+    {
+        glm::mat4 mat(1.0);
+        mat = glm::rotate(mat, vangle, glm::vec3(1, 0, 0));
+        mat = glm::rotate(mat, hangle, glm::vec3(0, 1, 0));
+        mat = glm::translate(mat, -position);
+        return mat;
+    }
+} CameraState;
 
 
 void PrintSystemInfo()
@@ -76,12 +105,58 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     if (action == GLFW_PRESS) {
         switch (key) {
         case GLFW_KEY_ESCAPE:
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            ControlState.cursor_locked = false;
             break;
-        case GLFW_KEY_W:
+        case GLFW_KEY_F1:
             ControlState.wireframe_mode = !ControlState.wireframe_mode;
             ControlState.cull_face = !ControlState.wireframe_mode;
-            ControlStateChanged = true;
+            break;
+
+        // Arrows
+        case GLFW_KEY_W:
+            CameraState.velocity.z = -1;
+            break;
+        case GLFW_KEY_S:
+            CameraState.velocity.z = 1;
+            break;
+        case GLFW_KEY_A:
+            CameraState.velocity.x = -1;
+            break;
+        case GLFW_KEY_D:
+            CameraState.velocity.x = 1;
+            break;
+        case GLFW_KEY_SPACE:
+        case GLFW_KEY_Q:
+            CameraState.velocity.y = 1;
+            break;
+        case GLFW_KEY_LEFT_SHIFT:
+        case GLFW_KEY_E:
+            CameraState.velocity.y = -1;
+            break;
+        }
+    }
+
+    if (action == GLFW_RELEASE) {
+        switch (key) {
+        case GLFW_KEY_W:
+            CameraState.velocity.z = 0;
+            break;
+        case GLFW_KEY_S:
+            CameraState.velocity.z = 0;
+            break;
+        case GLFW_KEY_A:
+            CameraState.velocity.x = 0;
+            break;
+        case GLFW_KEY_D:
+            CameraState.velocity.x = 0;
+            break;
+        case GLFW_KEY_SPACE:
+        case GLFW_KEY_Q:
+            CameraState.velocity.y = 0;
+            break;
+        case GLFW_KEY_LEFT_SHIFT:
+        case GLFW_KEY_E:
+            CameraState.velocity.y = 0;
             break;
         }
     }
@@ -89,8 +164,20 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
 
 void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
-    if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_PRESS)
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_PRESS) {
+        ControlState.cursor_locked = true;
+    }
+}
+
+static void CursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
+{
+    if (ControlState.cursor_locked) {
+        if (std::abs(xpos) + std::abs(ypos) < 10) {
+            CameraState.vangle += ypos / 300.0;
+            CameraState.hangle += xpos / 300.0;
+        }
+        glfwSetCursorPos(window, 0, 0);
+    }
 }
 
 GLFWwindow *InitMainWindow(const char *title, Config config)
@@ -114,6 +201,7 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
     glfwSetWindowSizeCallback(window, WindowResizeCallback);
     glfwSetKeyCallback(window, KeyCallback);
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
+    glfwSetCursorPosCallback(window, CursorPositionCallback);
 
     glfwMakeContextCurrent(window);
     glewExperimental = true;
@@ -125,6 +213,26 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
     return window;
 }
 
+
+void ApplyControlState()
+{
+    static struct ControlState current_control_state;
+    if (current_control_state == ControlState)
+        return;
+    current_control_state = ControlState;
+
+    glPolygonMode(GL_FRONT_AND_BACK, ControlState.wireframe_mode ? GL_LINE : GL_FILL);
+
+    if (ControlState.cull_face)
+        glEnable(GL_CULL_FACE);
+    else
+        glDisable(GL_CULL_FACE);
+
+    if (ControlState.cursor_locked)
+        glfwSetInputMode(MainWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    else
+        glfwSetInputMode(MainWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+}
 
 int main(void)
 {
@@ -189,18 +297,15 @@ int main(void)
     glClearColor(0, 0, 0, 0);
     int i = 0;
     while (!glfwWindowShouldClose(MainWindow)) {
-        if (ControlStateChanged) {
-            glPolygonMode(GL_FRONT_AND_BACK, ControlState.wireframe_mode ? GL_LINE : GL_FILL);
-            if (ControlState.cull_face) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
-            ControlStateChanged = false;
-        }
+        ApplyControlState();
+        CameraState.move(0.0125);
 
         ++i;
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(shader_program.id());
         glBindVertexArray(vao);
         shader_program["ModelMatrix"] = glm::rotate(glm::scale(glm::mat4(1.0), glm::vec3(0.1)), glm::radians(i / 2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
-        shader_program["ViewMatrix"] = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, sin(i/100.0)));
+        shader_program["ViewMatrix"] = CameraState.compute_view_matrix();
         shader_program["ProjectionMatrix"] = ProjectionMatrix;
 
         shader_program["Position"] = glm::vec3(0, 0, -1.5);
