@@ -65,7 +65,7 @@ void Shader::compile()
     int result;
     glGetShaderiv(_id, GL_COMPILE_STATUS, &result);
     if (result != GL_TRUE)
-        throw ShaderCompilationError(fmt::format("failed to compile shader ''", _name), _log);
+        throw ShaderCompilationError(fmt::format("failed to compile shader '{}'", _name), _log);
     _compiled = true;
     if (_auto_free)
         free_source();

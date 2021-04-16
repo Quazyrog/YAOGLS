@@ -17,6 +17,11 @@ struct Config
     float field_of_view = 45.0;
     bool fullscreen = false;
 
+    struct {
+        int x0 = -20, x1 = 21;
+        int z0 = -20, z1 = 21;
+    } world_bounds;
+
     std::filesystem::path resource_root = "/home/quazyrog/Desktop/OpenGL/Resources";
 };
 
@@ -31,7 +36,6 @@ GLfloat VERTICES[] = {
      1.0,  1.0, -1.0,
      1.0,  1.0,  1.0,
 };
-
 constexpr unsigned int FACES[] = {
     1, 5, 3, 7,
     0, 2, 4, 6,
@@ -40,8 +44,20 @@ constexpr unsigned int FACES[] = {
     4, 5, 0, 1,
     7, 6, 3, 2,
 };
-
 }
+constexpr GLfloat FLOOR_VERTICES[] = {
+    -1.0, -1.0,  -1.0, +1.0,
+    -0.5, -1.0,  -0.5, +1.0,
+     0.0, -1.0,   0.0, +1.0,
+    +0.5, -1.0,  +0.5, +1.0,
+    +1.0, -1.0,  +1.0, +1.0,
+
+    -1.0, -1.0,  +1.0, -1.0,
+    -1.0, -0.5,  +1.0, -0.5,
+    -1.0,  0.0,  +1.0,  0.0,
+    -1.0, +0.5,  +1.0, +0.5,
+    -1.0, +1.0,  +1.0, +1.0,
+};
 
 
 glm::mat4 ProjectionMatrix;
@@ -214,6 +230,20 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
 }
 
 
+auto CompileShader(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path)
+{
+    ShaderProgram program;
+    auto vertex_shader = Shader::FromSourceFile<VertexShader>(vsh_path);
+    program.attach(vertex_shader);
+    auto fragment_shader = Shader::FromSourceFile<FragmentShader>(fsh_path);
+    program.attach(fragment_shader);
+    program.link();
+    program.detach(fragment_shader);
+    program.detach(vertex_shader);
+    return program;
+}
+
+
 void ApplyControlState()
 {
     static struct ControlState current_control_state;
@@ -249,37 +279,52 @@ int main(void)
         PrintSystemInfo();
 
 
-    GLuint vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-    GLError::RaiseIfError();
+    GLuint cube_vao;
+    {
+        glGenVertexArrays(1, &cube_vao);
+        glBindVertexArray(cube_vao);
+        GLError::RaiseIfError();
 
-    GLuint vbo;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Cube::VERTICES), Cube::VERTICES, GL_STATIC_DRAW);
-    GLError::RaiseIfError();
+        GLuint vbo;
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Cube::VERTICES), Cube::VERTICES, GL_STATIC_DRAW);
+        GLError::RaiseIfError();
 
-    GLuint ebo;
-    glGenBuffers(1, &ebo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Cube::FACES), Cube::FACES, GL_STATIC_DRAW);
-    GLError::RaiseIfError();
+        GLuint ebo;
+        glGenBuffers(1, &ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Cube::FACES), Cube::FACES, GL_STATIC_DRAW);
+        GLError::RaiseIfError();
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-    glEnableVertexAttribArray(0);
-    GLError::RaiseIfError();
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0);
+        glEnableVertexAttribArray(0);
+        GLError::RaiseIfError();
+    }
+
+    GLuint floor_vao;
+    {
+        glGenVertexArrays(1, &floor_vao);
+        glBindVertexArray(floor_vao);
+        GLError::RaiseIfError();
+
+        GLuint vbo;
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(FLOOR_VERTICES), FLOOR_VERTICES, GL_STATIC_DRAW);
+        GLError::RaiseIfError();
+
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void *) 0);
+        glEnableVertexAttribArray(0);
+        GLError::RaiseIfError();
+    }
 
 
-    ShaderProgram shader_program;
+    ShaderProgram cube_shader, floor_shader;
     try {
-        auto vertex_shader = Shader::FromSourceFile<VertexShader>(config.resource_root / "Voxel.vert");
-        shader_program.attach(vertex_shader);
-        auto fragment_shader = Shader::FromSourceFile<FragmentShader>(config.resource_root / "Voxel.frag");
-        shader_program.attach(fragment_shader);
-        shader_program.link();
-        shader_program.detach(fragment_shader);
-        shader_program.detach(vertex_shader);
+        auto shaders_path = config.resource_root / "Shaders";
+        cube_shader = CompileShader(shaders_path / "Voxel.vert", shaders_path / "Voxel.frag");
+        floor_shader = CompileShader(shaders_path / "GridTile.vert", shaders_path / "GridTile.frag");
     } catch (ShaderCompilationError &e) {
         std::cerr << e.what() << ": " << e.message() << "\n";
         for (auto c: e.compilation_log()) {
@@ -299,24 +344,37 @@ int main(void)
     while (!glfwWindowShouldClose(MainWindow)) {
         ApplyControlState();
         CameraState.move(0.0125);
-
-        ++i;
+        auto view_matrix = CameraState.compute_view_matrix();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(shader_program.id());
-        glBindVertexArray(vao);
-        shader_program["ModelMatrix"] = glm::rotate(glm::scale(glm::mat4(1.0), glm::vec3(0.1)), glm::radians(i / 2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
-        shader_program["ViewMatrix"] = CameraState.compute_view_matrix();
-        shader_program["ProjectionMatrix"] = ProjectionMatrix;
+        ++i;
 
-        shader_program["Position"] = glm::vec3(0, 0, -1.5);
-        auto colour = shader_program["voxel_colour"];
+        glUseProgram(cube_shader.id());
+        glBindVertexArray(cube_vao);
+        cube_shader["ModelMatrix"] = glm::rotate(glm::scale(glm::mat4(1.0), glm::vec3(0.1)), glm::radians(i / 2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+        cube_shader["ViewMatrix"] = view_matrix;
+        cube_shader["ProjectionMatrix"] = ProjectionMatrix;
+        cube_shader["Position"] = glm::vec3(0, 0, -1.5);
+        auto colour = cube_shader["voxel_colour"];
         for (auto i = 0; i <= 6; ++i) {
             colour = glm::vec3((i+1) & 1, (i+1) & 2, (i+1) & 4);
             glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT,(void *) (sizeof(Cube::FACES[0]) * 4 * i));
         }
+        GLError::RaiseIfError();
+
+        glUseProgram(floor_shader.id());
+        glBindVertexArray(floor_vao);
+        floor_shader["ViewMatrix"] = view_matrix;
+        floor_shader["ProjectionMatrix"] = ProjectionMatrix;
+        auto fpos = cube_shader["Position"];
+        for (int x = config.world_bounds.x0; x < config.world_bounds.x1; ++x) {
+            for (int z = config.world_bounds.z0; z < config.world_bounds.z1; ++z) {
+                fpos = glm::vec3(x, -10.0, z);
+                glDrawArrays(GL_LINES, 0, 20);
+            }
+        }
+        GLError::RaiseIfError();
 
         glBindVertexArray(0);
-        GLError::RaiseIfError();
         glfwSwapBuffers(MainWindow);
         glfwPollEvents();
     }
