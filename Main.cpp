@@ -4,7 +4,9 @@
 #include <functional>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/norm.hpp>
+#include <map>
 #include "Shaders.hpp"
+#include "VoxelGrid.hpp"
 
 
 struct Config
@@ -37,12 +39,12 @@ GLfloat VERTICES[] = {
      1.0,  1.0,  1.0,
 };
 constexpr unsigned int FACES[] = {
-    1, 5, 3, 7,
-    0, 2, 4, 6,
-    1, 3, 0, 2,
-    4, 6, 5, 7,
-    4, 5, 0, 1,
-    7, 6, 3, 2,
+    1, 5, 3, 7,  // back
+    0, 2, 4, 6,  // front
+    1, 3, 0, 2,  // left
+    4, 6, 5, 7,  // right
+    4, 5, 0, 1,  // bottom
+    7, 6, 3, 2,  // top
 };
 }
 constexpr GLfloat FLOOR_VERTICES[] = {
@@ -60,6 +62,7 @@ constexpr GLfloat FLOOR_VERTICES[] = {
 };
 
 
+VoxelGrid Grid(48, 24, 48, -24, -8, -24);
 glm::mat4 ProjectionMatrix;
 GLFWwindow *MainWindow;
 struct ControlState {
@@ -82,18 +85,25 @@ struct CameraState {
         if (glm::l1Norm(velocity) < 0.001)
             return;
         velocity = glm::normalize(velocity);
-        auto worldspace_x = std::cos(-hangle) * velocity.x + std::sin(-hangle) * velocity.z;
-        auto worldspace_z = -std::sin(-hangle) * velocity.x + std::cos(-hangle) * velocity.z;
+        auto worldspace_x = std::cos(hangle) * velocity.x + std::sin(hangle) * velocity.z;
+        auto worldspace_z = -std::sin(hangle) * velocity.x + std::cos(hangle) * velocity.z;
         position += speed * glm::vec3(worldspace_x, velocity.y, worldspace_z);
     }
 
     auto compute_view_matrix() const
     {
         glm::mat4 mat(1.0);
-        mat = glm::rotate(mat, vangle, glm::vec3(1, 0, 0));
-        mat = glm::rotate(mat, hangle, glm::vec3(0, 1, 0));
+        mat = glm::rotate(mat, -vangle, glm::vec3(1, 0, 0));
+        mat = glm::rotate(mat, -hangle, glm::vec3(0, 1, 0));
         mat = glm::translate(mat, -position);
         return mat;
+    }
+
+    glm::vec3 compute_look_vector() const {
+        double x = std::cos(vangle) * std::sin(-hangle);
+        double y = std::sin(vangle);
+        double z = -std::cos(vangle) * std::cos(-hangle);
+        return {x, y, z};
     }
 } CameraState;
 
@@ -180,8 +190,40 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
 
 void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
-    if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_PRESS) {
-        ControlState.cursor_locked = true;
+    if (action != GLFW_PRESS)
+        return;
+    if (ControlState.cursor_locked) {
+        if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+            auto r = Grid.raycast(CameraState.position, CameraState.compute_look_vector());
+            if (r.started_in_bounds) {
+                if (r.hit) {
+                    switch (r.hit_face) {
+                    case VoxelFace::BACK:
+                        r.voxel_z -= 1;
+                        break;
+                    case VoxelFace::FRONT:
+                        r.voxel_z += 1;
+                        break;
+                    case VoxelFace::LEFT:
+                        r.voxel_x -= 1;
+                        break;
+                    case VoxelFace::RIGHT:
+                        r.voxel_x += 1;
+                        break;
+                    case VoxelFace::BOTTOM:
+                        r.voxel_y -= 1;
+                        break;
+                    case VoxelFace::TOP:
+                        r.voxel_y += 1;
+                        break;
+                    }
+                }
+                Grid(r.voxel_x, r.voxel_y, r.voxel_z).block_id = 1;
+            }
+        }
+    } else {
+        if (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT)
+            ControlState.cursor_locked = true;
     }
 }
 
@@ -189,8 +231,8 @@ static void CursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
 {
     if (ControlState.cursor_locked) {
         if (std::abs(xpos) + std::abs(ypos) < 10) {
-            CameraState.vangle += ypos / 300.0;
-            CameraState.hangle += xpos / 300.0;
+            CameraState.vangle -= ypos / 300.0;
+            CameraState.hangle -= xpos / 300.0;
         }
         glfwSetCursorPos(window, 0, 0);
     }
@@ -268,6 +310,12 @@ int main(void)
 {
     Config config;
 
+    std::map<unsigned, glm::vec3> block_models{{1, glm::vec3(1, 0, 0)}, {2, glm::vec3(0, 1, 0)}, {3, glm::vec3(0, 0, 1)}};
+    for (int z = -4; z < 15; ++z) {
+        printf("%i\n", 1 + (abs(z) % 3));
+        Grid(0, -6, z).block_id = 1 + (abs(z) % 3);
+    }
+
     try {
         MainWindow = InitMainWindow("Hello World", config);
     } catch (Error &e) {
@@ -337,7 +385,6 @@ int main(void)
         return 1;
     }
 
-
     glEnable(GL_DEPTH_TEST);
     glClearColor(0, 0, 0, 0);
     int i = 0;
@@ -350,14 +397,23 @@ int main(void)
 
         glUseProgram(cube_shader.id());
         glBindVertexArray(cube_vao);
-        cube_shader["ModelMatrix"] = glm::rotate(glm::scale(glm::mat4(1.0), glm::vec3(0.1)), glm::radians(i / 2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+        cube_shader["ModelMatrix"] = glm::scale(glm::mat4(1.0), glm::vec3(0.5));
         cube_shader["ViewMatrix"] = view_matrix;
         cube_shader["ProjectionMatrix"] = ProjectionMatrix;
-        cube_shader["Position"] = glm::vec3(0, 0, -1.5);
-        auto colour = cube_shader["voxel_colour"];
-        for (auto i = 0; i <= 6; ++i) {
-            colour = glm::vec3((i+1) & 1, (i+1) & 2, (i+1) & 4);
-            glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT,(void *) (sizeof(Cube::FACES[0]) * 4 * i));
+        auto attr_position = cube_shader["Position"];
+        auto attr_colour = cube_shader["voxel_colour"];
+        for (int x = Grid.min_x(); x < Grid.max_x(); ++x) {
+            for (int y = Grid.min_y(); y < Grid.max_y(); ++y) {
+                for (int z = Grid.min_z(); z < Grid.max_z(); ++z) {
+                    const auto &voxel = Grid(x, y, z);
+                    if (voxel.block_id == 0)
+                        continue;
+                    attr_colour = block_models.at(voxel.block_id);
+                    attr_position = glm::vec3(x, y, z);
+                    for (auto i = 0; i <= 6; ++i)
+                        glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT,(void *) (sizeof(Cube::FACES[0]) * 4 * i));
+                }
+            }
         }
         GLError::RaiseIfError();
 
@@ -366,9 +422,9 @@ int main(void)
         floor_shader["ViewMatrix"] = view_matrix;
         floor_shader["ProjectionMatrix"] = ProjectionMatrix;
         auto fpos = cube_shader["Position"];
-        for (int x = config.world_bounds.x0; x < config.world_bounds.x1; ++x) {
-            for (int z = config.world_bounds.z0; z < config.world_bounds.z1; ++z) {
-                fpos = glm::vec3(x, -10.0, z);
+        for (int x = Grid.min_x(); x < Grid.max_x(); ++x) {
+            for (int z = Grid.min_z(); z < Grid.max_z(); ++z) {
+                fpos = glm::vec3(x, Grid.min_y() - 0.49, z);
                 glDrawArrays(GL_LINES, 0, 20);
             }
         }
