@@ -46,6 +46,26 @@ constexpr unsigned int FACES[] = {
     4, 5, 0, 1,  // bottom
     7, 6, 3, 2,  // top
 };
+struct Vertex
+{
+    GLfloat x, y, z;
+    GLint face_index;
+};
+auto VerticesWithFaceIds()
+{
+    std::vector<Vertex> data;
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            Vertex v;
+            v.x = VERTICES[FACES[4 * i + j] * 3 + 0];
+            v.y = VERTICES[FACES[4 * i + j] * 3 + 1];
+            v.z = VERTICES[FACES[4 * i + j] * 3 + 2];
+            v.face_index = i;
+            data.push_back(v);
+        }
+    }
+    return data;
+}
 }
 constexpr GLfloat FLOOR_VERTICES[] = {
     -1.0, -1.0,  -1.0, +1.0,
@@ -311,10 +331,8 @@ int main(void)
     Config config;
 
     std::map<unsigned, glm::vec3> block_models{{1, glm::vec3(1, 0, 0)}, {2, glm::vec3(0, 1, 0)}, {3, glm::vec3(0, 0, 1)}};
-    for (int z = -4; z < 15; ++z) {
-        printf("%i\n", 1 + (abs(z) % 3));
+    for (int z = -4; z < 15; ++z)
         Grid(0, -6, z).block_id = 1 + (abs(z) % 3);
-    }
 
     try {
         MainWindow = InitMainWindow("Hello World", config);
@@ -331,22 +349,19 @@ int main(void)
     {
         glGenVertexArrays(1, &cube_vao);
         glBindVertexArray(cube_vao);
-        GLError::RaiseIfError();
 
+        auto data = Cube::VerticesWithFaceIds();
         GLuint vbo;
         glGenBuffers(1, &vbo);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(Cube::VERTICES), Cube::VERTICES, GL_STATIC_DRAW);
-        GLError::RaiseIfError();
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Cube::Vertex) * data.size(), data.data(), GL_STATIC_DRAW);
 
-        GLuint ebo;
-        glGenBuffers(1, &ebo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Cube::FACES), Cube::FACES, GL_STATIC_DRAW);
-        GLError::RaiseIfError();
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void *) 0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Cube::Vertex), (void*)0);
         glEnableVertexAttribArray(0);
+        glVertexAttribIPointer(1, 1, GL_INT, sizeof(Cube::Vertex), (void*)offsetof(Cube::Vertex, face_index));
+        glEnableVertexAttribArray(1);
+
+        glBindVertexArray(0);
         GLError::RaiseIfError();
     }
 
@@ -365,6 +380,8 @@ int main(void)
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void *) 0);
         glEnableVertexAttribArray(0);
         GLError::RaiseIfError();
+
+        glBindVertexArray(0);
     }
 
 
@@ -411,7 +428,7 @@ int main(void)
                     attr_colour = block_models.at(voxel.block_id);
                     attr_position = glm::vec3(x, y, z);
                     for (auto i = 0; i <= 6; ++i)
-                        glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT,(void *) (sizeof(Cube::FACES[0]) * 4 * i));
+                        glDrawArrays(GL_TRIANGLE_STRIP, 4 * i, 4);
                 }
             }
         }
