@@ -434,6 +434,18 @@ int main(void)
         }
         GLError::RaiseIfError();
 
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        GLError::RaiseIfError();
+        auto r = Grid.raycast(CameraState.position, CameraState.compute_look_vector());
+        cube_shader["ModelMatrix"] = glm::scale(glm::mat4(1), glm::vec3(0.55));
+        attr_position = glm::vec3(r.voxel_x, r.voxel_y, r.voxel_z);
+        attr_colour = glm::vec3(1);
+        for (auto i = 0; i <= 6; ++i) {
+            glDrawArrays(GL_TRIANGLE_STRIP, 4 * i, 4);
+        }
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        GLError::RaiseIfError();
+
         glUseProgram(floor_shader.id());
         glBindVertexArray(floor_vao);
         floor_shader["ViewMatrix"] = view_matrix;

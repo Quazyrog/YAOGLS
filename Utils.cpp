@@ -10,9 +10,9 @@ void GLError::RaiseIfError()
         while (glGetError() != GL_NO_ERROR)
             ++count;
         if (count)
-            throw Error("OpenGL error #{}: {} (and {} more errors)", code, gluErrorString(code), code);
+            throw GLError("OpenGL error #{}: {} (and {} more errors)", code, gluErrorString(code), code);
         else
-            throw Error("OpenGL error #{}: {}", code, gluErrorString(code));
+            throw GLError("OpenGL error #{}: {}", code, gluErrorString(code));
     }
 }
 

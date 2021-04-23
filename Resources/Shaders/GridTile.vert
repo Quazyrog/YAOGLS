@@ -14,8 +14,5 @@ void main()
     wspos.xyz = vec3(0.48 * position.x, 0.0, 0.48 *  position.y) + Position;
     wspos.w = 1;
     gl_Position = ProjectionMatrix * ViewMatrix * wspos;
-    if (abs(position.x) == 1 || abs(position.y) == 1)
-        color = vec3(1);
-    else
-        color = vec3(0.5);
+    color = vec3(0.5);
 }
