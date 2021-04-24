@@ -24,7 +24,7 @@ struct Config
         int z0 = -20, z1 = 21;
     } world_bounds;
 
-    std::filesystem::path resource_root = "/home/quazyrog/Desktop/OpenGL/Resources";
+    std::filesystem::path resource_root = "/home/quazyrog/Desktop/OpenGL_/Resources";
 };
 
 namespace Cube {
@@ -80,6 +80,12 @@ constexpr GLfloat FLOOR_VERTICES[] = {
     -1.0, +0.5,  +1.0, +0.5,
     -1.0, +1.0,  +1.0, +1.0,
 };
+constexpr GLfloat UI_VERTICES[] = {
+    -0.05, -0.05, 0.0,   0.0, 0.0,
+     0.05, -0.05, 0.0,   1.0, 0.0,
+    -0.05,  0.05, 0.0,   0.0, 1.0,
+     0.05,  0.05, 0.0,   1.0, 1.0,
+};
 
 
 VoxelGrid Grid(48, 24, 48, -24, -8, -24);
@@ -126,6 +132,7 @@ struct CameraState {
         return {x, y, z};
     }
 } CameraState;
+float ScreenRatio;
 
 
 void PrintSystemInfo()
@@ -143,7 +150,8 @@ void PrintSystemInfo()
 void WindowResizeCallback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
-    ProjectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 500.0f);
+    ScreenRatio = (float)width / (float)height;
+    ProjectionMatrix = glm::perspective(glm::radians(45.0f), ScreenRatio, 0.1f, 500.0f);
 }
 
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -384,12 +392,41 @@ int main(void)
         glBindVertexArray(0);
     }
 
+    GLuint ui_vao;
+    {
+        glGenVertexArrays(1, &ui_vao);
+        glBindVertexArray(ui_vao);
+        GLError::RaiseIfError();
 
-    ShaderProgram cube_shader, floor_shader;
+        GLuint vbo;
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(UI_VERTICES), UI_VERTICES, GL_STATIC_DRAW);
+        GLError::RaiseIfError();
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void *) 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void *) (3 * sizeof(GLfloat)));
+        glEnableVertexAttribArray(1);
+        GLError::RaiseIfError();
+
+        glBindVertexArray(0);
+    }
+
+    auto indicator_texture = LoadTextureImage(config.resource_root / "Textures" / "sight.png");
+    glBindTexture(GL_TEXTURE_2D, indicator_texture);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+    GLError::RaiseIfError();
+
+
+    ShaderProgram cube_shader, floor_shader, ui_shader;
     try {
         auto shaders_path = config.resource_root / "Shaders";
         cube_shader = CompileShader(shaders_path / "Voxel.vert", shaders_path / "Voxel.frag");
         floor_shader = CompileShader(shaders_path / "GridTile.vert", shaders_path / "GridTile.frag");
+        ui_shader = CompileShader(shaders_path / "UI.vert", shaders_path / "UI.frag");
     } catch (ShaderCompilationError &e) {
         std::cerr << e.what() << ": " << e.message() << "\n";
         for (auto c: e.compilation_log()) {
@@ -403,14 +440,14 @@ int main(void)
     }
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glClearColor(0, 0, 0, 0);
-    int i = 0;
     while (!glfwWindowShouldClose(MainWindow)) {
         ApplyControlState();
-        CameraState.move(0.0125);
+        CameraState.move(0.025);
         auto view_matrix = CameraState.compute_view_matrix();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        ++i;
 
         glUseProgram(cube_shader.id());
         glBindVertexArray(cube_vao);
@@ -457,6 +494,16 @@ int main(void)
                 glDrawArrays(GL_LINES, 0, 20);
             }
         }
+        GLError::RaiseIfError();
+
+        glDisable(GL_DEPTH_TEST);
+        glUseProgram(ui_shader.id());
+        ui_shader["ScreenRatio"] = ScreenRatio;
+        glBindVertexArray(ui_vao);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, indicator_texture);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glEnable(GL_DEPTH_TEST);
         GLError::RaiseIfError();
 
         glBindVertexArray(0);

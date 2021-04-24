@@ -53,6 +53,15 @@ public:
 };
 
 
+template<typename IntegralType>
+constexpr IntegralType RoundToSize(IntegralType value, IntegralType size)
+{
+    if (value % size != 0)
+        return value + (size - value % size);
+    return value;
+}
+
 std::string ReadFile(const std::filesystem::path &path);
+GLuint LoadTextureImage(const std::filesystem::path &path);
 
 #endif //OPENGLTUTORIAL_UTILS_HPP

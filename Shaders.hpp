@@ -28,7 +28,7 @@ public:
     template<class ShaderClass>
     static ShaderClass FromSourceFile(const std::filesystem::path &source_path)
     {
-        ShaderClass shader(source_path.stem().string());
+        ShaderClass shader(source_path.filename().string());
         shader.add_source(source_path);
         shader.compile();
         return shader;
