@@ -223,31 +223,30 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
     if (ControlState.cursor_locked) {
         if (button == GLFW_MOUSE_BUTTON_RIGHT) {
             auto r = Grid.raycast(CameraState.position, CameraState.compute_look_vector());
-            if (r.started_in_bounds) {
-                if (r.hit) {
-                    switch (r.hit_face) {
-                    case VoxelFace::BACK:
-                        r.voxel_z -= 1;
-                        break;
-                    case VoxelFace::FRONT:
-                        r.voxel_z += 1;
-                        break;
-                    case VoxelFace::LEFT:
-                        r.voxel_x -= 1;
-                        break;
-                    case VoxelFace::RIGHT:
-                        r.voxel_x += 1;
-                        break;
-                    case VoxelFace::BOTTOM:
-                        r.voxel_y -= 1;
-                        break;
-                    case VoxelFace::TOP:
-                        r.voxel_y += 1;
-                        break;
-                    }
+            if (r.hit) {
+                switch (r.hit_face) {
+                case VoxelFace::BACK:
+                    r.voxel_z -= 1;
+                    break;
+                case VoxelFace::FRONT:
+                    r.voxel_z += 1;
+                    break;
+                case VoxelFace::LEFT:
+                    r.voxel_x -= 1;
+                    break;
+                case VoxelFace::RIGHT:
+                    r.voxel_x += 1;
+                    break;
+                case VoxelFace::BOTTOM:
+                    r.voxel_y -= 1;
+                    break;
+                case VoxelFace::TOP:
+                    r.voxel_y += 1;
+                    break;
                 }
-                Grid(r.voxel_x, r.voxel_y, r.voxel_z).block_id = 1;
             }
+            if (r.hit || r.voxel_y == Grid.min_y())
+                Grid(r.voxel_x, r.voxel_y, r.voxel_z).block_id = 1;
         }
     } else {
         if (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT)

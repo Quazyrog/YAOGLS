@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec3 in_position;
 layout(location = 1) in int in_face_id;
-out vec3 normal;
+flat out vec3 normal;
 
 uniform vec3 Position;
 
