@@ -7,7 +7,7 @@
 namespace {
 
 template<class Float>
-constexpr Float UntilGridHit(Float origin, Float speed, Float min_speed=0.001)
+constexpr Float UntilGridHit(Float origin, Float speed, Float min_speed=0.00001)
 {
     if (std::abs(speed) < min_speed)
         return std::numeric_limits<Float>::infinity();
@@ -49,9 +49,9 @@ RaycastResult VoxelGrid::raycast(glm::vec3 o, glm::vec3 r)
     r = glm::normalize(r);
 
     RaycastResult result;
-    result.voxel_x = static_cast<int>(o.x);
-    result.voxel_y = static_cast<int>(o.y);
-    result.voxel_z = static_cast<int>(o.z);
+    result.voxel_x = static_cast<int>(std::floor(o.x));
+    result.voxel_y = static_cast<int>(std::floor(o.y));
+    result.voxel_z = static_cast<int>(std::floor(o.z));
     result.started_in_bounds  = in_bounds(result.voxel_x, result.voxel_y, result.voxel_z);
 
     unsigned i = 0;
@@ -62,10 +62,10 @@ RaycastResult VoxelGrid::raycast(glm::vec3 o, glm::vec3 r)
         dist += d;
         o += d * r;
 
-        auto x = static_cast<int>(o.x);
-        auto y = static_cast<int>(o.y);
-        auto z = static_cast<int>(o.z);
-//        fmt::print("  - ({}, {}, {})\n", x, y, z);
+        auto x = static_cast<int>(std::floor(o.x));
+        auto y = static_cast<int>(std::floor(o.y));
+        auto z = static_cast<int>(std::floor(o.z));
+//        fmt::print("({}, {}, {}), ", x, y, z);
 
         if (result.started_in_bounds && !in_bounds(x, y, z))
             return result;
