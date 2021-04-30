@@ -425,7 +425,7 @@ int main(void)
     try {
         auto shaders_path = config.resource_root / "Shaders";
         cube_shader = CompileShader(shaders_path / "Voxel.vert", shaders_path / "Voxel.frag");
-        floor_shader = CompileShader(shaders_path / "GridTile.vert", shaders_path / "GridTile.frag");
+        floor_shader = CompileShader(shaders_path / "Floor.vert", shaders_path / "Floor.frag");
         ui_shader = CompileShader(shaders_path / "UI.vert", shaders_path / "UI.frag");
     } catch (ShaderCompilationError &e) {
         std::cerr << e.what() << ": " << e.message() << "\n";
@@ -451,7 +451,7 @@ int main(void)
 
         glUseProgram(cube_shader.id());
         glBindVertexArray(cube_vao);
-        cube_shader["ModelMatrix"] = glm::scale(glm::mat4(1.0), glm::vec3(0.5));
+        cube_shader["ModelMatrix"] = glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(0.5)), glm::vec3(0.5));
         cube_shader["ViewMatrix"] = view_matrix;
         cube_shader["ProjectionMatrix"] = ProjectionMatrix;
         auto attr_position = cube_shader["Position"];
@@ -471,26 +471,14 @@ int main(void)
         }
         GLError::RaiseIfError();
 
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        GLError::RaiseIfError();
-        auto r = Grid.raycast(CameraState.position, CameraState.compute_look_vector());
-        cube_shader["ModelMatrix"] = glm::scale(glm::mat4(1), glm::vec3(0.55));
-        attr_position = glm::vec3(r.voxel_x, r.voxel_y, r.voxel_z);
-        attr_colour = glm::vec3(1);
-        for (auto i = 0; i <= 6; ++i) {
-            glDrawArrays(GL_TRIANGLE_STRIP, 4 * i, 4);
-        }
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        GLError::RaiseIfError();
-
         glUseProgram(floor_shader.id());
         glBindVertexArray(floor_vao);
         floor_shader["ViewMatrix"] = view_matrix;
         floor_shader["ProjectionMatrix"] = ProjectionMatrix;
-        auto fpos = cube_shader["Position"];
+        auto fpos = floor_shader["Position"];
         for (int x = Grid.min_x(); x < Grid.max_x(); ++x) {
             for (int z = Grid.min_z(); z < Grid.max_z(); ++z) {
-                fpos = glm::vec3(x, Grid.min_y() - 0.49, z);
+                fpos = glm::vec3(x, Grid.min_y(), z);
                 glDrawArrays(GL_LINES, 0, 20);
             }
         }
