@@ -1,7 +1,9 @@
 #include <sstream>
 #include <fstream>
 #include <png++/png.hpp>
-#include "Utils.hpp"
+#include "Misc.hpp"
+
+namespace GL {
 
 void GLError::RaiseIfError()
 {
@@ -21,7 +23,7 @@ std::string ReadFile(const std::filesystem::path &path)
 {
     std::string content;
     std::ifstream stream(path);
-    if (stream.is_open()){
+    if (stream.is_open()) {
         std::stringstream sstr;
         sstr << stream.rdbuf();
         return sstr.str();
@@ -60,4 +62,6 @@ GLuint LoadTextureImage(const std::filesystem::path &path)
 DELETE_TEXTURE:
     glDeleteTextures(1, &texture);
     return 0;
+}
+
 }

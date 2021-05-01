@@ -10,4 +10,16 @@ find_package(GLEW REQUIRED)
 find_package(PNG REQUIRED)
 link_libraries(glfw OpenGL::GL OpenGL::GLU ${GLEW_LIBRARIES} fmt::fmt PNG::PNG)
 
-add_executable(tutorial Main.cpp Shaders.cpp Shaders.hpp Utils.cpp Utils.hpp VoxelGrid.cpp VoxelGrid.hpp GLMath.cpp GLMath.hpp)
+set(GL_LIB_SOURCES
+        Source/GL/GLSL/Types.hpp
+        )
+
+add_executable(tutorial
+        Source/Main.cpp
+        Source/GL/Shaders.cpp
+        Source/GL/Shaders.hpp
+        Source/GL/Misc.cpp
+        Source/GL/Misc.hpp
+        Source/VoxelGrid.cpp
+        Source/VoxelGrid.hpp
+        )

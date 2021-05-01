@@ -5,7 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/norm.hpp>
 #include <map>
-#include "Shaders.hpp"
+#include "GL/Shaders.hpp"
 #include "VoxelGrid.hpp"
 
 
@@ -268,7 +268,7 @@ static void CursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
 GLFWwindow *InitMainWindow(const char *title, Config config)
 {
     if (!glfwInit())
-        throw Error("unable to initialize GLFW");
+        throw GL::Error("unable to initialize GLFW");
 
     auto monitor = config.fullscreen ? glfwGetPrimaryMonitor() : nullptr;
     glfwWindowHint(GLFW_SAMPLES, config.antialiasing);
@@ -279,7 +279,7 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
     GLFWwindow* window = glfwCreateWindow(config.resolution_width, config.resolution_height, title, monitor, nullptr);
     if (!window) {
         glfwTerminate();
-        throw Error("unable to create main window");
+        throw GL::Error("unable to create main window");
     }
 
     WindowResizeCallback(window, config.resolution_width, config.resolution_height);
@@ -292,7 +292,7 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
     glewExperimental = true;
     if (glewInit() != GLEW_OK) {
         glfwTerminate();
-        throw Error("unable to initialize GLEW");
+        throw GL::Error("unable to initialize GLEW");
     }
 
     return window;
@@ -301,10 +301,10 @@ GLFWwindow *InitMainWindow(const char *title, Config config)
 
 auto CompileShader(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path)
 {
-    ShaderProgram program;
-    auto vertex_shader = Shader::FromSourceFile<VertexShader>(vsh_path);
+    GL::ShaderProgram program;
+    auto vertex_shader = GL::Shader::FromSourceFile<GL::VertexShader>(vsh_path);
     program.attach(vertex_shader);
-    auto fragment_shader = Shader::FromSourceFile<FragmentShader>(fsh_path);
+    auto fragment_shader = GL::Shader::FromSourceFile<GL::FragmentShader>(fsh_path);
     program.attach(fragment_shader);
     program.link();
     program.detach(fragment_shader);
@@ -343,7 +343,7 @@ int main(void)
 
     try {
         MainWindow = InitMainWindow("Hello World", config);
-    } catch (Error &e) {
+    } catch (GL::Error &e) {
         std::cerr << "ERROR: " << e.message() << std::endl;
         return 1;
     }
@@ -369,24 +369,24 @@ int main(void)
         glEnableVertexAttribArray(1);
 
         glBindVertexArray(0);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
     }
 
     GLuint floor_vao;
     {
         glGenVertexArrays(1, &floor_vao);
         glBindVertexArray(floor_vao);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         GLuint vbo;
         glGenBuffers(1, &vbo);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(FLOOR_VERTICES), FLOOR_VERTICES, GL_STATIC_DRAW);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void *) 0);
         glEnableVertexAttribArray(0);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         glBindVertexArray(0);
     }
@@ -395,38 +395,38 @@ int main(void)
     {
         glGenVertexArrays(1, &ui_vao);
         glBindVertexArray(ui_vao);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         GLuint vbo;
         glGenBuffers(1, &vbo);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(UI_VERTICES), UI_VERTICES, GL_STATIC_DRAW);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void *) 0);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void *) (3 * sizeof(GLfloat)));
         glEnableVertexAttribArray(1);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         glBindVertexArray(0);
     }
 
-    auto indicator_texture = LoadTextureImage(config.resource_root / "Textures" / "sight.png");
+    auto indicator_texture = GL::LoadTextureImage(config.resource_root / "Textures" / "sight.png");
     glBindTexture(GL_TEXTURE_2D, indicator_texture);
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-    GLError::RaiseIfError();
+    GL::GLError::RaiseIfError();
 
 
-    ShaderProgram cube_shader, floor_shader, ui_shader;
+    GL::ShaderProgram cube_shader, floor_shader, ui_shader;
     try {
         auto shaders_path = config.resource_root / "Shaders";
         cube_shader = CompileShader(shaders_path / "Voxel.vert", shaders_path / "Voxel.frag");
         floor_shader = CompileShader(shaders_path / "Floor.vert", shaders_path / "Floor.frag");
         ui_shader = CompileShader(shaders_path / "UI.vert", shaders_path / "UI.frag");
-    } catch (ShaderCompilationError &e) {
+    } catch (GL::ShaderCompilationError &e) {
         std::cerr << e.what() << ": " << e.message() << "\n";
         for (auto c: e.compilation_log()) {
             if (c == '\n')
@@ -468,7 +468,7 @@ int main(void)
                 }
             }
         }
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         glUseProgram(floor_shader.id());
         glBindVertexArray(floor_vao);
@@ -481,7 +481,7 @@ int main(void)
                 glDrawArrays(GL_LINES, 0, 20);
             }
         }
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         glDisable(GL_DEPTH_TEST);
         glUseProgram(ui_shader.id());
@@ -491,7 +491,7 @@ int main(void)
         glBindTexture(GL_TEXTURE_2D, indicator_texture);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         glEnable(GL_DEPTH_TEST);
-        GLError::RaiseIfError();
+        GL::GLError::RaiseIfError();
 
         glBindVertexArray(0);
         glfwSwapBuffers(MainWindow);

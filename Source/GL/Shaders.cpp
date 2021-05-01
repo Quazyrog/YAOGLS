@@ -1,5 +1,7 @@
 #include "Shaders.hpp"
 
+namespace GL {
+
 Shader &Shader::operator=(Shader &&other)
 {
     if (this == &other)
@@ -128,4 +130,6 @@ void ShaderProgram::link()
         throw ShaderCompilationError(fmt::format("failed to link program"), _log);
     _linked = true;
     GLError::RaiseIfError();
+}
+
 }
