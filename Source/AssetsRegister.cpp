@@ -26,7 +26,7 @@ void AssetsRegister::read_pack(const std::filesystem::path &manifest_path)
             glBindTexture(GL_TEXTURE_2D_ARRAY, atlas.block_texture_array);
             // fixme: proper layer count
             glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGB8, static_cast<GLsizei>(atlas.resolution),
-                           static_cast<GLsizei>(atlas.resolution), 4);
+                           static_cast<GLsizei>(atlas.resolution), 256);
             glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
             GL::GLError::RaiseIfError();
@@ -42,7 +42,7 @@ void AssetsRegister::read_pack(const std::filesystem::path &manifest_path)
                 model->name_ = block["name"].as<std::string>();
                 model->textures_array_ = used_atlas.block_texture_array;
                 for (const auto &tex: block["textures"]) {
-                    const char *FACE_SHORT_ID = "udlrfb";
+                    const char *FACE_SHORT_ID = "bflrdu";
                     const auto tile_x = tex.second[0].as<size_t>();
                     const auto tile_y = tex.second[1].as<size_t>();
                     for (const auto face_char: tex.first.as<std::string>()) {
@@ -69,9 +69,9 @@ GLuint AssetsRegister::get_texture_index_(AssetsRegister::TextureAtlas_ &source,
     std::vector<uint8_t> tile_rgb(3 * source.resolution * source.resolution);
 
     // Load pixel data
-    const auto copy_x0 = x * source.resolution;
+    const auto copy_x0 = (x - 1) * source.resolution;
     const auto copy_x1 = std::min<size_t>(copy_x0 + source.resolution, source.image.get_width());
-    const auto copy_y0 = y * source.resolution;
+    const auto copy_y0 = (y - 1) * source.resolution;
     const auto copy_y1 = std::min<size_t>(copy_y0 + source.resolution, source.image.get_height());
     size_t pixels = 0;
     for (size_t px = copy_x0; px < copy_x1; ++px) {

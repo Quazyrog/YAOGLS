@@ -1,6 +1,7 @@
 #version 330 core
 
 flat in int face_id;
+in vec2 texcoord;
 out vec4 out_colour;
 
 uniform vec3 SunlightDirection = vec3(0.5, -2, -1);
@@ -23,7 +24,7 @@ vec3 FaceNormal(int face_id)
 
 void main(){
     vec3 normal = FaceNormal(face_id);
-    vec3 color = texture(AtlasArray, vec3(0.5, 0.5, 3)).rgb;
+    vec3 color = texture(AtlasArray, vec3(texcoord.x, texcoord.y, FaceTextures[face_id])).rgb;
     float brightness = 0.8 + 0.2 * dot(normal, -normalize(SunlightDirection));
     out_colour = vec4(brightness * color, 1.0);
 }

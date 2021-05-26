@@ -29,44 +29,57 @@ struct Config
 };
 
 namespace Cube {
-GLfloat VERTICES[] = {
-    -1.0, -1.0, -1.0,
-    -1.0, -1.0,  1.0,
-    -1.0,  1.0, -1.0,
-    -1.0,  1.0,  1.0,
-     1.0, -1.0, -1.0,
-     1.0, -1.0,  1.0,
-     1.0,  1.0, -1.0,
-     1.0,  1.0,  1.0,
-};
-constexpr unsigned int FACES[] = {
-    1, 5, 3, 7,  // back
-    0, 2, 4, 6,  // front
-    1, 3, 0, 2,  // left
-    4, 6, 5, 7,  // right
-    4, 5, 0, 1,  // bottom
-    7, 6, 3, 2,  // top
-};
 struct Vertex
 {
-    GLfloat x, y, z;
+    glm::vec3 position;
+    glm::vec2 tex_coord;
     GLint face_index;
 };
-auto VerticesWithFaceIds()
-{
-    std::vector<Vertex> data;
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            Vertex v;
-            v.x = VERTICES[FACES[4 * i + j] * 3 + 0];
-            v.y = VERTICES[FACES[4 * i + j] * 3 + 1];
-            v.z = VERTICES[FACES[4 * i + j] * 3 + 2];
-            v.face_index = i;
-            data.push_back(v);
-        }
-    }
-    return data;
-}
+constexpr Vertex VERTICES[] = {
+    // Front face
+    {{-1, -1, +1}, {0, 1}, 0},
+    {{+1, -1, +1}, {1, 1}, 0},
+    {{-1, +1, +1}, {0, 0}, 0},
+    {{+1, +1, +1}, {1, 0}, 0},
+
+    // Back face
+    {{+1, -1, -1}, {0, 1}, 1},
+    {{-1, -1, -1}, {1, 1}, 1},
+    {{+1, +1, -1}, {0, 0}, 1},
+    {{-1, +1, -1}, {1, 0}, 1},
+
+    // Left face
+    {{-1, -1, -1}, {0, 1}, 2},
+    {{-1, -1, +1}, {1, 1}, 2},
+    {{-1, +1, -1}, {0, 0}, 2},
+    {{-1, +1, +1}, {1, 0}, 2},
+
+    // Right face
+    {{+1, -1, +1}, {0, 1}, 3},
+    {{+1, -1, -1}, {1, 1}, 3},
+    {{+1, +1, +1}, {0, 0}, 3},
+    {{+1, +1, -1}, {1, 0}, 3},
+
+    // Bottom face
+    {{-1, -1, -1}, {0, 1}, 4},
+    {{+1, -1, -1}, {1, 1}, 4},
+    {{-1, -1, +1}, {0, 0}, 4},
+    {{+1, -1, +1}, {1, 0}, 4},
+
+    // Top face
+    {{-1, +1, +1}, {0, 1}, 5},
+    {{+1, +1, +1}, {1, 1}, 5},
+    {{-1, +1, -1}, {0, 0}, 5},
+    {{+1, +1, -1}, {1, 0}, 5},
+};
+GLuint INDICES[] = {
+     0,  1,  2,   2,  1,  3,
+     4,  5,  6,   6,  5,  7,
+     8,  9, 10,  10,  9, 11,
+    12, 13, 14,  14, 13, 15,
+    16, 17, 18,  18, 17, 19,
+    20, 21, 22,  22, 21, 23
+};
 }
 constexpr GLfloat FLOOR_VERTICES[] = {
     -1.0, -1.0,  -1.0, +1.0,
@@ -340,7 +353,7 @@ int main(void)
     AssetsRegister assets;
 
     for (int z = -4; z < 15; ++z)
-        Grid(0, -6, z).block_id = 1 + (abs(z) % 3);
+        Grid(0, -6, z).block_id = 1 + (abs(z) % 4);
 
     try {
         MainWindow = InitMainWindow("Hello World", config);
@@ -359,16 +372,22 @@ int main(void)
         glGenVertexArrays(1, &cube_vao);
         glBindVertexArray(cube_vao);
 
-        auto data = Cube::VerticesWithFaceIds();
         GLuint vbo;
         glGenBuffers(1, &vbo);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(Cube::Vertex) * data.size(), data.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Cube::VERTICES), Cube::VERTICES, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Cube::Vertex), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Cube::Vertex), (void*)offsetof(Cube::Vertex, position));
         glEnableVertexAttribArray(0);
         glVertexAttribIPointer(1, 1, GL_INT, sizeof(Cube::Vertex), (void*)offsetof(Cube::Vertex, face_index));
         glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Cube::Vertex), (void*)offsetof(Cube::Vertex, tex_coord));
+        glEnableVertexAttribArray(2);
+
+        GLuint ebo;
+        glGenBuffers(1, &ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Cube::INDICES), Cube::INDICES, GL_STATIC_DRAW);
 
         glBindVertexArray(0);
         GL::GLError::RaiseIfError();
@@ -471,8 +490,7 @@ int main(void)
                     attr_textures = block_model.faces_textures_indices();
                     GL::GLError::RaiseIfError();
                     attr_position = glm::vec3(x, y, z);
-                    for (auto i = 0; i <= 6; ++i)
-                        glDrawArrays(GL_TRIANGLE_STRIP, 4 * i, 4);
+                    glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, nullptr);
                 }
             }
         }
