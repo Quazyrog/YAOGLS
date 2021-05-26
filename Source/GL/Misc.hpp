@@ -74,6 +74,7 @@ constexpr IntegralType RoundToSize(IntegralType value, IntegralType size)
 }
 
 std::string ReadFile(const std::filesystem::path &path);
+std::tuple<size_t, size_t, std::vector<uint8_t>> LoadImageData(const std::filesystem::path &path);
 GLuint LoadTextureImage(const std::filesystem::path &path);
 
 }

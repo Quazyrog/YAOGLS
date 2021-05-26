@@ -1,0 +1,13 @@
+pack_version: 0
+engine_version: 0
+prefix: yaogls
+objects:
+  - name: dokucraft
+    type: BLOCKS_TEXTURE_ATLAS
+    file: Blocks.png
+    resolution: 32
+    x_stride: 32
+    y_stride: 32
+  - name: blocks
+    type: BLOCKS_REGISTER
+    file: Blocks.yml

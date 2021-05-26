@@ -1,0 +1,10 @@
+textures_source: dokucraft
+blocks:
+  - name: grass
+    textures: { u: [1, 1], d: [1, 3], lrfb: [1, 4] }
+  - name: dirt
+    textures: { udlrfb: [1, 3] }
+  - name: stone
+    textures: { udlrfb: [1, 1] }
+  - name: cobble
+    textures: { udlrfb: [2, 1] }

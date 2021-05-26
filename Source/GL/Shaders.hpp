@@ -106,6 +106,9 @@ public:
     UniformValue() = default;
     void operator=(const UniformValue &other) = delete;
 
+    [[nodiscard]] GLint location() const noexcept
+    { return _location; }
+
     void operator=(int v)
     { glUniform1i(_location, v); }
 
@@ -123,6 +126,10 @@ public:
 
     void operator=(const glm::mat4 &v)
     { glUniformMatrix4fv(_location, 1, GL_FALSE, glm::value_ptr(v)); }
+
+    template<size_t N>
+    void operator=(const std::array<GLint, N> &v)
+    { glUniform1iv(_location, N, v.data()); }
 };
 
 class ShaderProgram

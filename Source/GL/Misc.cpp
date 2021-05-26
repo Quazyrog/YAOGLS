@@ -37,6 +37,20 @@ GLuint LoadTextureImage(const std::filesystem::path &path)
     glGenTextures(1, &texture);
     GLError::RaiseIfError();
 
+    auto [width, height, data] = LoadImageData(path);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLint>(width), static_cast<GLint>(height), 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, data.data());
+
+    return texture;
+
+DELETE_TEXTURE:
+    glDeleteTextures(1, &texture);
+    return 0;
+}
+
+std::tuple<size_t, size_t, std::vector<uint8_t>> LoadImageData(const std::filesystem::path &path)
+{
     png::image<png::rgba_pixel> image;
     image.read(path);
     const auto width = image.get_width();
@@ -53,15 +67,7 @@ GLuint LoadTextureImage(const std::filesystem::path &path)
         }
     }
 
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLint>(width), static_cast<GLint>(height), 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, data.data());
-
-    return texture;
-
-DELETE_TEXTURE:
-    glDeleteTextures(1, &texture);
-    return 0;
+    return {width, height, data};
 }
 
 }

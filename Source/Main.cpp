@@ -7,6 +7,7 @@
 #include <map>
 #include "GL/Shaders.hpp"
 #include "VoxelGrid.hpp"
+#include "AssetsRegister.hpp"
 
 
 struct Config
@@ -336,8 +337,8 @@ void ApplyControlState()
 int main(void)
 {
     Config config;
+    AssetsRegister assets;
 
-    std::map<unsigned, glm::vec3> block_models{{1, glm::vec3(1, 0, 0)}, {2, glm::vec3(0, 1, 0)}, {3, glm::vec3(0, 0, 1)}};
     for (int z = -4; z < 15; ++z)
         Grid(0, -6, z).block_id = 1 + (abs(z) % 3);
 
@@ -351,6 +352,7 @@ int main(void)
     if (config.print_system_info)
         PrintSystemInfo();
 
+    assets.read_pack(config.resource_root / "AssetsPack" / "MANIFEST.yml");
 
     GLuint cube_vao;
     {
@@ -454,14 +456,20 @@ int main(void)
         cube_shader["ViewMatrix"] = view_matrix;
         cube_shader["ProjectionMatrix"] = ProjectionMatrix;
         auto attr_position = cube_shader["Position"];
-        auto attr_colour = cube_shader["voxel_colour"];
+        auto attr_atlas = cube_shader["AtlasArray"];
+        auto attr_textures = cube_shader["FaceTextures"];
         for (int x = Grid.min_x(); x < Grid.max_x(); ++x) {
             for (int y = Grid.min_y(); y < Grid.max_y(); ++y) {
                 for (int z = Grid.min_z(); z < Grid.max_z(); ++z) {
                     const auto &voxel = Grid(x, y, z);
                     if (voxel.block_id == 0)
                         continue;
-                    attr_colour = block_models.at(voxel.block_id);
+                    const auto &block_model = assets.block_by_id(voxel.block_id);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D_ARRAY, block_model.used_texture_array_id());
+                    attr_atlas = 0;
+                    attr_textures = block_model.faces_textures_indices();
+                    GL::GLError::RaiseIfError();
                     attr_position = glm::vec3(x, y, z);
                     for (auto i = 0; i <= 6; ++i)
                         glDrawArrays(GL_TRIANGLE_STRIP, 4 * i, 4);
