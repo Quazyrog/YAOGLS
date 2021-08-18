@@ -6,6 +6,7 @@
 #include <exception>
 #include <filesystem>
 #include <string_view>
+#include <vector>
 
 namespace GL {
 
@@ -21,7 +22,7 @@ public:
 
     template<class ...Args>
     Error(std::string_view format, Args... args):
-        _message(fmt::format(format, std::forward<Args>(args)...))
+        _message(fmt::vformat(format, fmt::make_format_args(std::forward<Args>(args)...)))
     {}
 
     const std::string &message() noexcept
